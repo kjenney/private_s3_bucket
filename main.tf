@@ -14,8 +14,28 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+data "aws_ami" "al2" {
+ most_recent = true
+
+
+ filter {
+   name   = "owner-alias"
+   values = ["amazon"]
+ }
+
+
+ filter {
+   name   = "name"
+   values = ["amzn2-ami-hvm*"]
+ }
+}
+
+data "aws_iam_policy" "AmazonSSMManagedInstanceCore" {
+  arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_s3_bucket" "b" {
-  bucket = "kens-tf-test-bucket23"
+  bucket = var.bucket_name
   tags = {
     Name        = "My bucket"
     Environment = "Dev"
@@ -43,6 +63,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "bucket-lifecycle" {
     }
   }
 }
+
 resource "aws_iam_policy" "bucket-iam-policy" {
   name               = "s3_access"
   path               = "/"
@@ -60,7 +81,7 @@ resource "aws_iam_policy" "bucket-iam-policy" {
     ]
   })
 }
-resource "aws_iam_role" "bucket-iam-role" {
+resource "aws_iam_role" "allow_connectivity_to_private_bucket" {
   name               = "s3-bucket-role"
   path               = "/"
   description        = "Allow access to S3"
@@ -75,17 +96,39 @@ resource "aws_iam_role" "bucket-iam-role" {
           Service = "ec2.amazonaws.com"
         }
       },
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = ""
+        Principal = {
+          AWS = data.aws_caller_identity.current.account_id
+        }
+      },
     ]
   })
 }
+
+resource "aws_iam_instance_profile" "allow_connectivity_to_private_bucket" {
+  name = "allow_connectivity_to_private_bucket"
+  role = aws_iam_role.allow_connectivity_to_private_bucket.name
+}
+
 resource "aws_iam_role_policy_attachment" "bucket-iam-attach" {
-  role               = aws_iam_role.bucket-iam-role.name
+  role               = aws_iam_role.allow_connectivity_to_private_bucket.name
   policy_arn         = aws_iam_policy.bucket-iam-policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "ssm-iam-attach" {
+  role               = aws_iam_role.allow_connectivity_to_private_bucket.name
+  policy_arn         = data.aws_iam_policy.AmazonSSMManagedInstanceCore.arn
 }
 
 resource "aws_s3_bucket_policy" "bucket-iam-policy" {
   bucket             = aws_s3_bucket.b.id
   policy             = data.aws_iam_policy_document.allow_access_from_iam_role.json
+  depends_on         = [
+    aws_s3_bucket_lifecycle_configuration.bucket-lifecycle
+  ]
 }
 
 data "aws_iam_policy_document" "allow_access_from_iam_role" {
@@ -104,9 +147,43 @@ data "aws_iam_policy_document" "allow_access_from_iam_role" {
       test     = "StringNotLike"
       variable = "aws:userId"
       values = [
-        "${aws_iam_role.bucket-iam-role.unique_id}:*",
+        "${aws_iam_role.allow_connectivity_to_private_bucket.unique_id}:*",
         "${data.aws_caller_identity.current.account_id}"
       ]
     }
   }
 }
+
+## VPC created separately
+
+resource "aws_security_group" "allow_outbound" {
+  name        = "allow_outbound"
+  description = "Allow outbound traffic"
+  vpc_id      = var.vpc_id
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  tags = {
+    Name = "allow_tls"
+  }
+}
+
+resource "aws_instance" "bucket_test" {
+  ami                         = data.aws_ami.al2.id
+  instance_type               = "t3.large"
+  vpc_security_group_ids      = [aws_security_group.allow_outbound.id]
+  iam_instance_profile        = aws_iam_instance_profile.allow_connectivity_to_private_bucket.id
+  subnet_id                   = var.subnet_id
+
+  tags = {
+    Name = "HelloBucket"
+  }
+}
+
+
