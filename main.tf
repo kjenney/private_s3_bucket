@@ -88,41 +88,25 @@ resource "aws_s3_bucket_policy" "bucket-iam-policy" {
   policy             = data.aws_iam_policy_document.allow_access_from_iam_role.json
 }
 
-# data "aws_iam_policy_document" "allow_access_from_iam_role" {
-#   statement {
-#     principal        =  "*"
-#     effect           = "Deny"
-#     actions          = ["s3:*]
-#     resources        = [
-#       aws_s3_bucket.b.arn,
-#       "${aws_s3_bucket.b.arn}/*"
-#     ]
-#     condition {
-#       test     = "StringNotLike"
-#       variable = "aws:userId"
-#       values = [
-#         "${aws_iam_role.bucket-iam-role.unique_id}:*",
-#         "${data.aws_caller_identity.current.account_id}"
-#       ]
-#     }
-#   }
-# }
-
 data "aws_iam_policy_document" "allow_access_from_iam_role" {
   statement {
     principals {
-      type        = "AWS"
-      identifiers = ["${data.aws_caller_identity.current.account_id}"]
+      type        = "*"
+      identifiers = ["*"]
     }
-
-    actions = [
-      "s3:GetObject",
-      "s3:ListBucket",
-    ]
-
+    effect        = "Deny"
+    actions       = ["s3:*"]
     resources = [
       aws_s3_bucket.b.arn,
       "${aws_s3_bucket.b.arn}/*",
     ]
+    condition {
+      test     = "StringNotLike"
+      variable = "aws:userId"
+      values = [
+        "${aws_iam_role.bucket-iam-role.unique_id}:*",
+        "${data.aws_caller_identity.current.account_id}"
+      ]
+    }
   }
 }
