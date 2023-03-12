@@ -148,6 +148,7 @@ data "aws_iam_policy_document" "allow_access_from_iam_role" {
       variable = "aws:userId"
       values = [
         "${aws_iam_role.allow_connectivity_to_private_bucket.unique_id}:*",
+        "${var.external_role_id}:*",
         "${data.aws_caller_identity.current.account_id}"
       ]
     }
@@ -185,5 +186,3 @@ resource "aws_instance" "bucket_test" {
     Name = "HelloBucket"
   }
 }
-
-
