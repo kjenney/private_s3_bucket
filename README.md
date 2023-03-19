@@ -1,19 +1,21 @@
 # pivate_s3_bucket
 
-Creates an S3 bucket that can be only accessed by an EC2 instance with a specific instance profile
+Creates an S3 bucket that can be accessed by an IAM role in the same account and an IAM role or user in another account.
 
 Use:
 
 ```
 module "private_s3_bucket" {
     source = "../../"
-    vpc_id = "vpc-01234567891011"
-    subnet_id = "subnet-01234567891011"
-    external_role_id = "ARO1242432155242323"
+    external_arn = "arn:aws:iam::111111111111:role/crossrole"
+    external_id = "AROAEXAMPLEID"
+    internal_user_id = "AIDAEXAMPLEID"
 }
 ```
 
-Where external_role_id is an IAM role in any account that you'd like to use to access the newly created bucket.
+Where external_arn and external_id is an IAM role or user in a different account than the bucket that you'd like to use to access the newly created bucket.
+
+External ID can get retrieved by using either `RoleId` with `aws iam get-role` or `UserId` with `aws iam get-user`.
 
 You an optionally set the bucket name with variable `bucket_name`.
 

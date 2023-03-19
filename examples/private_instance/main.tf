@@ -1,6 +1,6 @@
 module "private_s3_bucket" {
     source = "../../"
-    vpc_id = "vpc-01234567891011"
-    subnet_id = "subnet-01234567891011"
-    external_role_id = "ARO1242432155242323"
+    external_arn = "arn:aws:iam::111111111111:role/crossrole"
+    external_id = "AROAEXAMPLEID"
+    internal_user_id = "AIDAEXAMPLEID"
 }
